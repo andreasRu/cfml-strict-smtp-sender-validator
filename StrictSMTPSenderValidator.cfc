@@ -86,12 +86,10 @@ component {
 	 */
 	public struct function isSendersIPAllowedForEmailAddress(
 		required string ipAddress,
-		required string emailAddress,
-		required string heloSMTPString="" ) {
+		required string emailAddress ) {
 			
 			local.ipAddress = arguments.ipAddress;
 			local.emailAddress = arguments.emailAddress;
-			local.heloSMTPString = arguments.heloSMTPString;
 			local.ipAddressOfDomainName = "";
 			local.domainName= "";
 	
@@ -156,6 +154,16 @@ component {
 
 
 
+			/**
+			* 	SPF Entry Check
+			*/	
+			appendDebugLogLine( "<hr><b>*** CHECK 2 SPF Entries:</b> Verify if Senders IP #local.ipAddress# is allowed to send Email on behalf of '#local.domainName#' by CALLING: isSendersIpAllowedBySPF( '#arguments.ipAddress#', '#domainName#'')" );
+			if ( isSendersIpAllowedBySPF( local.ipAddress, local.domainName ) ) {
+				appendDebugLogLine( "SPF: true" );
+				this.resultSMTPVerifier[ "reason" ]= "SPFcheck for '#local.ipAddress#' OK";
+				this.resultSMTPVerifier[ "result" ]= true;
+				return this.resultSMTPVerifier;
+			};
 
 
 
@@ -163,7 +171,7 @@ component {
 			/**
 			* 	DNS "A" Entry Check
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 2 DNS-A Entries:</b>  Verify if the senders IP #local.ipAddress# is the same as in 'A'-DNS-entry for '#local.domainName#'" );
+			appendDebugLogLine( "<hr><b>*** CHECK 3 DNS-A Entries:</b>  Verify if the senders IP #local.ipAddress# is the same as in 'A'-DNS-entry for '#local.domainName#'" );
 			
 			if( isSendersIPAllowedByA( local.ipAddress, local.domainName) is true ) {
 				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'" );
@@ -178,13 +186,10 @@ component {
 
 
 
-
-
-
 			/**
 			* 	DNS "MX" Entry Check
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 3 MX-Entries:</b> Verify if the senders IP #local.ipAddress# is the same IP as in 'MX'-DNS-entry by CALLING: isSendersIpAllowedByMX( '#local.ipAddress#'' , '#local.domainName#')" );
+			appendDebugLogLine( "<hr><b>*** CHECK 4 MX-Entries:</b> Verify if the senders IP #local.ipAddress# is the same IP as in 'MX'-DNS-entry by CALLING: isSendersIpAllowedByMX( '#local.ipAddress#'' , '#local.domainName#')" );
 			
 			if( isSendersIPAllowedByMX( local.ipAddress, local.domainName) is true ){
 				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'" );
@@ -195,31 +200,10 @@ component {
 
 
 
-
-
-
-
-			/**
-			* 	SPF Entry Check
-			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 6 SPF Entries:</b> Verify if Senders IP #local.ipAddress# is allowed to send Email on behalf of '#local.domainName#' by CALLING: isSendersIpAllowedBySPF( '#arguments.ipAddress#', '#domainName#'')" );
-			if ( isSendersIpAllowedBySPF( local.ipAddress, local.domainName ) ) {
-				appendDebugLogLine( "SPF: true" );
-				this.resultSMTPVerifier[ "reason" ]= "SPFcheck for '#local.ipAddress#' OK";
-				this.resultSMTPVerifier[ "result" ]= true;
-				return this.resultSMTPVerifier;
-			};
-
-
-
-
-
-
-
 			/**
 			* 	DNS "PTR" Entry Check come from same Domain
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 7 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
+			appendDebugLogLine( "<hr><b>*** CHECK 5 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
 			
 			if( isSendersIPAllowedByPTR( local.ipAddress, local.domainName) is true ){
 				
@@ -230,34 +214,6 @@ component {
 		
 			};
 
-
-
-
-
-
-
-			/**
-			* 	Resolve HELO if string has been submitted
-			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 8 EHLO:</b> Verify if Senders EHLO '#local.heloSMTPString#' resolves to an IP address" );
-			if( len( trim( local.heloSMTPString ) ) ){
-				
-				if( hasSendersValidHelo( local.heloSMTPString ) ){
-
-					appendDebugLogLine( "HELO STRING is valid" );
-			
-
-				} else {
-
-					appendDebugLogLine( "HELO STRING is NOT valid" );
-			
-				};
-
-			} else {
-
-				appendDebugLogLine( "EHLO string was NOT specified. Check skipped" );
-			};
-			
 
 		
 
@@ -271,47 +227,7 @@ component {
 	}
 
 
-	/**
-	* @hint returns true if the submitted HELO string is a valid registrered Domain Name (DNS);
-	*/
-	private boolean function hasSendersValidHelo( 
-		required string ipAddress, 
-		required string heloSMTPString ){
 			
-			local.ipAddress = arguments.ipAddress;
-			local.heloSMTPString = arguments.heloSMTPString;
-				
-			local.AforHELODomainDNSEntryArray = listToArray( getDNSRecordByType( heloSMTPString, "A" ), "," );
-						
-			appendDebugLogLine( "<hr>Found: '#arrayToList(local.AforHELODomainDNSEntryArray)#'" );
-						
-
-			cfloop( item="heloAitem" index="t" array="#local.AforHELODomainDNSEntryArray#" ) {
-
-				local.heloAitem = listLast(  heloAitem, " ");
-				appendDebugLogLine( "<hr>Verifying if senders IP #t#: '#local.ipAddress#' equals MX IP '#local.heloAitem#'" );
-				
-		
-				if ( local.heloAitem == local.ipAddress ) {
-
-					//SendersIP is MX-Server
-					appendDebugLogLine( "senders IP '#local.ipAddress#' is A of MX IP '#local.heloAitem#'" );
-					return true;
-
-				} else {
-
-					//SendersIP is NOT MX-Server
-					appendDebugLogLine( "senders IP '#local.ipAddress#' is NOT A of MX IP '#local.heloAitem#'" );
-				
-				}
-
-			}
-
-			return false;
-
-	}
-
-		
 	/**
 	* @hint returns true if an IPAddress is manually whitelisted;
 	*/
@@ -360,10 +276,10 @@ component {
 			appendDebugLogLine( "DNS QUERY: PTR for IP '#local.ipAddress#' is '#local.PTRDomainDNSEntry#'" );
 			
 			if ( right(local.PTRDomainDNSEntry, len( "." & local.domainName )) == "." & local.domainName ){
-				appendDebugLogLine( "senders IP '#local.ipAddress#' PTR is part of '#local.domainName#'" );
+				appendDebugLogLine( "sender '#local.PTRDomainDNSEntry#' is part of '#local.domainName#'" );
 				return true;
 			} else {
-				appendDebugLogLine( "senders IP '#local.ipAddress#' PTR DOESN't seem to come from '#local.domainName#'" );
+				appendDebugLogLine( "senders '#local.PTRDomainDNSEntry#' DOESN't seem to come from '#local.domainName#'" );
 				return false;	
 			};
 	}
