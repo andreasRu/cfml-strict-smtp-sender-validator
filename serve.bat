@@ -1,3 +1,3 @@
 set CWD=%cd%
-box stop name=cfml-strict-smtp-verifier
-box start name=cfml-strict-smtp-verifier
+box stop name=cfml-strict-spf-sender-validator
+box start name=cfml-strict-spf-sender-validator

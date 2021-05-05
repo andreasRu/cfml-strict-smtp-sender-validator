@@ -10,7 +10,7 @@ component {
 
 	property 	name="debugLog" type="string";
 	property 	name="debugLogLevel" type="number";
-	property 	name="resultSMTPVerifier" type="struct"; 
+	property 	name="spfSenderValidatorResult" type="struct"; 
 	
 	/**
 	 * Constructor for SMTP Verifier with debugging possibility 
@@ -19,10 +19,10 @@ component {
 
 		this.debugLog = "";
 		this.debugLogLevel = arguments.debugLogLevel;
-		this.resultSMTPVerifier= {};
+		this.spfSenderValidatorResult= {};
 
 		if( this.debugLogLevel > 0 ) {
-				appendDebugLogLine( "Component SMTPverifier initialized" ); 
+				appendDebugLogLine( "Component StrictSPFSenderValidator initialized" ); 
 			} 
 		
 		verifyAndInstallDependencies();
@@ -112,9 +112,9 @@ component {
 				appendDebugLogLine( "EmailAddress '#encodeforHTML(local.emailAddress)#' is syntatically not valid" );
 				
 				// break here and send component data
-				this.resultSMTPVerifier[ "reason" ]="Email-address not valid";
-				this.resultSMTPVerifier[ "result" ]= false;
-				return this.resultSMTPVerifier;
+				this.spfSenderValidatorResult[ "reason" ]="Email-address not valid";
+				this.spfSenderValidatorResult[ "result" ]= false;
+				return this.spfSenderValidatorResult;
 
 			};
 
@@ -141,9 +141,9 @@ component {
 			if( isIPAddressWhitelisted( local.ipAddress,  local.domainName ) ){
 				
 				appendDebugLogLine( "IP '#local.ipAddress#' IS statically whitelisted for @#local.domainName#" );
-				this.resultSMTPVerifier[ "reason" ]= "Senders IP '#local.ipAddress#' is statically whitelisted for @#local.domainName#";
-				this.resultSMTPVerifier[ "result" ]= true;
-				return this.resultSMTPVerifier;
+				this.spfSenderValidatorResult[ "reason" ]= "Senders IP '#local.ipAddress#' is statically whitelisted for @#local.domainName#";
+				this.spfSenderValidatorResult[ "result" ]= true;
+				return this.spfSenderValidatorResult;
 
 			} else {
 
@@ -160,9 +160,9 @@ component {
 			appendDebugLogLine( "<hr><b>*** CHECK 2 SPF Entries:</b> Verify if Senders IP #local.ipAddress# is allowed to send Email on behalf of '#local.domainName#' by CALLING: isSendersIpAllowedBySPF( '#arguments.ipAddress#', '#domainName#'')" );
 			if ( isSendersIpAllowedBySPF( local.ipAddress, local.domainName ) ) {
 				appendDebugLogLine( "SPF: true" );
-				this.resultSMTPVerifier[ "reason" ]= "SPFcheck for '#local.ipAddress#' OK";
-				this.resultSMTPVerifier[ "result" ]= true;
-				return this.resultSMTPVerifier;
+				this.spfSenderValidatorResult[ "reason" ]= "SPFcheck for '#local.ipAddress#' OK";
+				this.spfSenderValidatorResult[ "result" ]= true;
+				return this.spfSenderValidatorResult;
 			};
 
 
@@ -175,9 +175,9 @@ component {
 			
 			if( isSendersIPAllowedByA( local.ipAddress, local.domainName) is true ) {
 				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'";
-				this.resultSMTPVerifier[ "result" ]= true;
-				return this.resultSMTPVerifier;
+				this.spfSenderValidatorResult[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'";
+				this.spfSenderValidatorResult[ "result" ]= true;
+				return this.spfSenderValidatorResult;
 			} else {
 				appendDebugLogLine( "SendersIP '#local.ipAddress#' doesn't correspond to A-Entry" );
 				//Don't break here, because SMTP server IP still can differ from (e.g MX or SPF)
@@ -193,9 +193,9 @@ component {
 			
 			if( isSendersIPAllowedByMX( local.ipAddress, local.domainName) is true ){
 				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'";
-				this.resultSMTPVerifier[ "result" ]= true;
-				return this.resultSMTPVerifier;
+				this.spfSenderValidatorResult[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'";
+				this.spfSenderValidatorResult[ "result" ]= true;
+				return this.spfSenderValidatorResult;
 			};
 
 
@@ -208,9 +208,9 @@ component {
 			if( isSendersIPAllowedByPTR( local.ipAddress, local.domainName) is true ){
 				
 				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Senders PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
-				this.resultSMTPVerifier[ "result" ]= true;
-				return this.resultSMTPVerifier;
+				this.spfSenderValidatorResult[ "reason" ]= "Senders PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
+				this.spfSenderValidatorResult[ "result" ]= true;
+				return this.spfSenderValidatorResult;
 		
 			};
 
@@ -219,9 +219,9 @@ component {
 
 
 		// final return	
-		this.resultSMTPVerifier[ "reason" ]= "Sender Policy not complied";
-		this.resultSMTPVerifier[ "result" ]= false;
-		return this.resultSMTPVerifier;
+		this.spfSenderValidatorResult[ "reason" ]= "Sender Policy not complied";
+		this.spfSenderValidatorResult[ "result" ]= false;
+		return this.spfSenderValidatorResult;
 
 
 	}
@@ -565,27 +565,30 @@ component {
 		required string domainName,
 		required numeric spfHops = 0 ) {
 
-			local.spfHops = arguments.spfHops;
+			variables.spfHops = arguments.spfHops;
 			local.domainsAlreadyChecked= []; 
 			local.ipAddress= arguments.ipAddress; 
-			local.domainName= arguments.domainName; 
+			local.domainName= arguments.domainName;
+
+
+			
 
 			try {
-
-					appendDebugLogLine( "*** SPF-HOP INIT VALUE #local.spfHops#***: Check if SenderIP #local.ipAddress# is allowed to send as specified in SPF-Entry made by #local.domainName#");
+					
+					appendDebugLogLine( "*** SPF-HOP INIT VALUE #variables.spfHops#***: Check if SenderIP #local.ipAddress# is allowed to send as specified in SPF-Entry made by #local.domainName#");
 					
 					// Not allow more then 9 Hops
-					if ( local.spfHops >= 10 ) {
+					if ( variables.spfHops >= 10 ) {
 
 						return false;
 
 					};
 
-					if ( local.spfHops == 0 ) {
+					if ( variables.spfHops == 0 ) {
 					
 						// first round: initialize and populate array of already verified domains.
 						arrayAppend ( local.domainsAlreadyChecked, replacenocase( local.domainName, ".", "_", "ALL") );
-						appendDebugLogLine( "++++++ SPF check initialized spfHops:#local.spfHops# ++++++" );
+						appendDebugLogLine( "++++++ SPF check initialized spfHops:#variables.spfHops# ++++++" );
 						appendDebugLogLine( "Domain '#local.domainName#' added to domainsAlreadyChecked array."  );
 					
 					} else {
@@ -597,12 +600,13 @@ component {
 
 					};
 
-					local.spfHops++;
-
-					appendDebugLogLine( "SPF-HOP #local.spfHops#: Calling function getDNSRecordByType( '#local.domainName#', 'TXT') to retrieve a comma separed list of quoted strings for all DNS 'TXT'" );
+					
+					appendDebugLogLine( "SPF-HOP #variables.spfHops#: Calling function getDNSRecordByType( '#local.domainName#', 'TXT') to retrieve a comma separed list of quoted strings for all DNS 'TXT'" );
 					local.dnsRecord = getDNSRecordByType( local.domainName, "TXT" );
-					appendDebugLogLine( "<b>SPF-HOP #local.spfHops# DNS TXTs RECORDs RETRIEVED (comma separed list of quoted strings):</b><div style='border:1px solid navy;min-height:20px;padding:5px;max-width:500px;'>#encodeForHTML(local.dnsRecord)#</div>" );
-
+					appendDebugLogLine( "<b>SPF-HOP #variables.spfHops# DNS TXTs RECORDs RETRIEVED (comma separed list of quoted strings):</b><div style='border:1px solid navy;min-height:20px;padding:5px;max-width:500px;'>#encodeForHTML(local.dnsRecord)#</div>" );
+					
+					variables.spfHops++;
+					
 					if ( findNoCase( "v=spf1", local.dnsRecord ) ) {
 
 						local.pos1 = findNoCase( "v=spf1", local.dnsRecord );
@@ -692,8 +696,8 @@ component {
 
 									appendDebugLogLine( "Checking #local.spfitem#" );
 									local.includeDomainName = replacenocase( local.spfitem, local.SPFRecordType, "", "ALL" );
-									appendDebugLogLine( "#local.spfitem#: Rekursive call isSendersIpAllowedBySPF('#local.ipAddress#','#local.includeDomainName#',#local.spfHops#);" );
-									local.tmpisSendersIpAllowedBySPF = isSendersIpAllowedBySPF( local.ipAddress, local.includeDomainName, local.spfHops );
+									appendDebugLogLine( "#local.spfitem#: Rekursive call isSendersIpAllowedBySPF('#local.ipAddress#','#local.includeDomainName#',#variables.spfHops#);" );
+									local.tmpisSendersIpAllowedBySPF = isSendersIpAllowedBySPF( local.ipAddress, local.includeDomainName, variables.spfHops );
 
 									if ( local.tmpisSendersIpAllowedBySPF ) {
 
