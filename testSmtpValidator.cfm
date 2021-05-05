@@ -13,7 +13,8 @@
     }
 
     cftimer(label="Nap time" type="outline"){
-        SMTPverifier = new StrictSMTPSenderValidator( debugLogLevel = 1 );
+        SMTPverifier = new StrictSMTPSenderValidator( debugLogLevel = 0 );
+        echo( "SMTPverifier.isSendersIPAllowedForemailAddress( ""212.227.15.3"" , ""@web.de""):<br>" );
         smtpIsAllowed=SMTPverifier.isSendersIPAllowedForemailAddress( "212.227.15.3" , "@web.de");
         echo( SMTPverifier.debugLog );
         
