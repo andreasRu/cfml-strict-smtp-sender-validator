@@ -140,14 +140,14 @@ component {
 			appendDebugLogLine( "<hr><b>*** CHECK 1 Whitelists:</b> Verify if the senders IP  '#local.ipAddress#' is whitelisted");
 			if( isIPAddressWhitelisted( local.ipAddress,  local.domainName ) ){
 				
-				appendDebugLogLine( "IP '#local.ipAddress#' IS statically whitelisted for @#local.domainName#" );
+				appendDebugLogLine( "<b>Final-Whitelist:</b> IP '#local.ipAddress#' IS statically whitelisted for @#local.domainName#" );
 				this.spfSenderValidatorResult[ "reason" ]= "Senders IP '#local.ipAddress#' is statically whitelisted for @#local.domainName#";
 				this.spfSenderValidatorResult[ "result" ]= true;
 				return this.spfSenderValidatorResult;
 
 			} else {
 
-				appendDebugLogLine( "Senders IP '#local.ipAddress#' is NOT Whitelisted" );
+				appendDebugLogLine( "<b>Final-Whitelist:</b> Senders IP '#local.ipAddress#' is NOT Whitelisted" );
 				//Don't break here
 
 			};
@@ -159,10 +159,12 @@ component {
 			*/	
 			appendDebugLogLine( "<hr><b>*** CHECK 2 SPF Entries:</b> Verify if Senders IP #local.ipAddress# is allowed to send Email on behalf of '#local.domainName#' by CALLING: isSendersIpAllowedBySPF( '#arguments.ipAddress#', '#domainName#'')" );
 			if ( isSendersIpAllowedBySPF( local.ipAddress, local.domainName ) ) {
-				appendDebugLogLine( "SPF: true" );
+				appendDebugLogLine( "<b>Final-SPF:</b> Senders IP #local.ipAddress# is allowed to send by SPF" );
 				this.spfSenderValidatorResult[ "reason" ]= "SPFcheck for '#local.ipAddress#' OK";
 				this.spfSenderValidatorResult[ "result" ]= true;
 				return this.spfSenderValidatorResult;
+			} else {
+				appendDebugLogLine( "<b>Final-SPF:</b> Senders IP #local.ipAddress# is NOT ALLOWED to send by SPF" );
 			};
 
 
@@ -173,14 +175,13 @@ component {
 			*/	
 			appendDebugLogLine( "<hr><b>*** CHECK 3 DNS-A Entries:</b>  Verify if the senders IP #local.ipAddress# is the same as in 'A'-DNS-entry for '#local.domainName#'" );
 			
-			if( isSendersIPAllowedByA( local.ipAddress, local.domainName) is true ) {
-				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'" );
+			if( isSendersIPAllowedByA( local.ipAddress, local.domainName) ) {
+				appendDebugLogLine( "<b>Final-A:</b> Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'" );
 				this.spfSenderValidatorResult[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'";
 				this.spfSenderValidatorResult[ "result" ]= true;
 				return this.spfSenderValidatorResult;
 			} else {
-				appendDebugLogLine( "SendersIP '#local.ipAddress#' doesn't correspond to A-Entry" );
-				//Don't break here, because SMTP server IP still can differ from (e.g MX or SPF)
+				appendDebugLogLine( "<b>Final-A:</b> SendersIP '#local.ipAddress#' doesn't correspond to A-Entry" );
 			};
 
 
@@ -191,11 +192,13 @@ component {
 			*/	
 			appendDebugLogLine( "<hr><b>*** CHECK 4 MX-Entries:</b> Verify if the senders IP #local.ipAddress# is the same IP as in 'MX'-DNS-entry by CALLING: isSendersIpAllowedByMX( '#local.ipAddress#'' , '#local.domainName#')" );
 			
-			if( isSendersIPAllowedByMX( local.ipAddress, local.domainName) is true ){
-				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'" );
+			if( isSendersIPAllowedByMX( local.ipAddress, local.domainName) ){
+				appendDebugLogLine( "<b>Final-MX:</b> Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'" );
 				this.spfSenderValidatorResult[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'";
 				this.spfSenderValidatorResult[ "result" ]= true;
 				return this.spfSenderValidatorResult;
+			} else {
+				appendDebugLogLine( "<b>Final-MX:</b> SendersIP '#local.ipAddress#' doesn't correspond to MX-Entry" );
 			};
 
 
@@ -205,13 +208,15 @@ component {
 			*/	
 			appendDebugLogLine( "<hr><b>*** CHECK 5 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
 			
-			if( isSendersIPAllowedByPTR( local.ipAddress, local.domainName) is true ){
+			if( isSendersIPAllowedByPTR( local.ipAddress, local.domainName) ){
 				
-				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
+				appendDebugLogLine( "<b>Final-PTR:</b> PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
 				this.spfSenderValidatorResult[ "reason" ]= "Senders PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
 				this.spfSenderValidatorResult[ "result" ]= true;
 				return this.spfSenderValidatorResult;
 		
+			} else {
+				appendDebugLogLine( "<b>Final-PTR:</b> SendersIP '#local.ipAddress#' doesn't correspond to PTR-Entry" );
 			};
 
 
@@ -571,7 +576,8 @@ component {
 			local.domainName= arguments.domainName;
 
 
-			
+			variables.spfHops++;
+					
 
 			try {
 					
@@ -584,7 +590,7 @@ component {
 
 					};
 
-					if ( variables.spfHops == 0 ) {
+					if ( variables.spfHops == 1 ) {
 					
 						// first round: initialize and populate array of already verified domains.
 						arrayAppend ( local.domainsAlreadyChecked, replacenocase( local.domainName, ".", "_", "ALL") );
@@ -605,7 +611,6 @@ component {
 					local.dnsRecord = getDNSRecordByType( local.domainName, "TXT" );
 					appendDebugLogLine( "<b>SPF-HOP #variables.spfHops# DNS TXTs RECORDs RETRIEVED (comma separed list of quoted strings):</b><div style='border:1px solid navy;min-height:20px;padding:5px;max-width:500px;'>#encodeForHTML(local.dnsRecord)#</div>" );
 					
-					variables.spfHops++;
 					
 					if ( findNoCase( "v=spf1", local.dnsRecord ) ) {
 
@@ -677,7 +682,7 @@ component {
 
 								local.tmpisIpInRanges = isIpInRanges( listLast( local.spfitem, ":" ), local.ipAddress );
 						
-									if ( local.tmpisIpInRanges is true ) {
+									if ( local.tmpisIpInRanges ) {
 										appendDebugLogLine( "Ip #local.ipAddress# is in range '#listLast( local.spfitem, ":" )#'" );
 										return true;
 									} else {
