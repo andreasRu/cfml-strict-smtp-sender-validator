@@ -1,6 +1,6 @@
 {
     "force":"true",
-    "name":"cfml-smtp-verifier",
+    "name":"cfml-strict-smtp-verifier",
     "JVM":{
         "heapSize":"2048"
     },

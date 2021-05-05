@@ -239,25 +239,25 @@ component {
 			/**
 			* 	Resolve HELO if string has been submitted
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 8 EHLO:</b> Verify if Senders EHLO resolves to an IP address" );
-			if ( len( trim(local.heloSMTPString) ) is 0 ){
-				appendDebugLogLine( "No HELO String submitted, check skipped." );
+			appendDebugLogLine( "<hr><b>*** CHECK 8 EHLO:</b> Verify if Senders EHLO '#local.heloSMTPString#' resolves to an IP address" );
+			if( len( trim( local.heloSMTPString ) ) ){
+				
+				if( hasSendersValidHelo( local.heloSMTPString ) ){
 
-			} else {
-				local.heloIPAddress = getIpByDomain( local.heloSMTPString );
-
-				if( local.heloIPAddress is "0.0.0.0" ){
-					appendDebugLogLine( "Senders HELO String can't be resolved'" );
-					this.resultSMTPVerifier[ "reason" ]= "EHLO command can't be resolved'";
-					this.resultSMTPVerifier[ "result" ]= false;
-					
-					return this.resultSMTPVerifier;
+					appendDebugLogLine( "HELO STRING is valid" );
+			
 
 				} else {
-					appendDebugLogLine( "Senders HELO String resolves to '#local.heloIPAddress#'" );
-				}
 
+					appendDebugLogLine( "HELO STRING is NOT valid" );
+			
+				};
+
+			} else {
+
+				appendDebugLogLine( "EHLO string was NOT specified. Check skipped" );
 			};
+			
 
 		
 
@@ -275,18 +275,39 @@ component {
 	* @hint returns true if the submitted HELO string is a valid registrered Domain Name (DNS);
 	*/
 	private boolean function hasSendersValidHelo( 
+		required string ipAddress, 
 		required string heloSMTPString ){
+			
+			local.ipAddress = arguments.ipAddress;
+			local.heloSMTPString = arguments.heloSMTPString;
 				
-			local.HeloIPAddress = getDNSRecordByType( arguments.heloSMTPString, "a");
-			if ( local.HeloIPAddress!="0.0.0.0" ) {
-	
-				return true;
-	
-			} else {
-	
-				return false;
-	
-			};
+			local.AforHELODomainDNSEntryArray = listToArray( getDNSRecordByType( heloSMTPString, "A" ), "," );
+						
+			appendDebugLogLine( "<hr>Found: '#arrayToList(local.AforHELODomainDNSEntryArray)#'" );
+						
+
+			cfloop( item="heloAitem" index="t" array="#local.AforHELODomainDNSEntryArray#" ) {
+
+				local.heloAitem = listLast(  heloAitem, " ");
+				appendDebugLogLine( "<hr>Verifying if senders IP #t#: '#local.ipAddress#' equals MX IP '#local.heloAitem#'" );
+				
+		
+				if ( local.heloAitem == local.ipAddress ) {
+
+					//SendersIP is MX-Server
+					appendDebugLogLine( "senders IP '#local.ipAddress#' is A of MX IP '#local.heloAitem#'" );
+					return true;
+
+				} else {
+
+					//SendersIP is NOT MX-Server
+					appendDebugLogLine( "senders IP '#local.ipAddress#' is NOT A of MX IP '#local.heloAitem#'" );
+				
+				}
+
+			}
+
+			return false;
 
 	}
 
@@ -320,7 +341,7 @@ component {
 	}
 		
 	/**
-	* @hint returns true if IP's 'PTR' comes from same network domain from email
+	* @hint returns true if IP's 'PTR' comes from similar network domain as of email domain
 	* Example: t-online.de and mout.t-online.de return true
 	*/
 	private boolean function isSendersIPAllowedByPTR( 
@@ -339,10 +360,10 @@ component {
 			appendDebugLogLine( "DNS QUERY: PTR for IP '#local.ipAddress#' is '#local.PTRDomainDNSEntry#'" );
 			
 			if ( right(local.PTRDomainDNSEntry, len( "." & local.domainName )) == "." & local.domainName ){
-				appendDebugLogLine( "senders IP '#local.ipAddress#' PTR comes from same Network as is '#local.domainName#'" );
+				appendDebugLogLine( "senders IP '#local.ipAddress#' PTR is part of '#local.domainName#'" );
 				return true;
 			} else {
-				appendDebugLogLine( "senders IP '#local.ipAddress#' PTR DOES NOT come from same Network as is '#local.domainName#'" );
+				appendDebugLogLine( "senders IP '#local.ipAddress#' PTR DOESN't seem to come from '#local.domainName#'" );
 				return false;	
 			};
 	}
@@ -671,7 +692,7 @@ component {
 					for ( local.spfitem in local.SpfListArray ) {
 
 						appendDebugLogLine( "ITEM: #local.spfitem#" );
-						local.DNSRecordTypesInfSPF = [ "a", "mx" ];
+						local.DNSRecordTypesInfSPF = [ "A", "MX" ];
 
 						for ( local.DNSRecordType in local.DNSRecordTypesInfSPF ) {
 							
@@ -725,28 +746,18 @@ component {
 						};
 
 
-
-
 						if ( left( local.spfitem, len( "ip4:" ) ) == "ip4:" ) {
 
-							// if IP is a range
-							if ( findNoCase( "/", local.spfitem ) ) {
-								
-								local.tmpisIpInRanges = isIpInRanges( replacenocase( local.spfitem, "ip4:", "", "ALL" ), local.ipAddress );
+							local.tmpisIpInRanges = isIpInRanges( listLast( local.spfitem, ":" ), local.ipAddress );
 					
 								if ( local.tmpisIpInRanges is true ) {
-									appendDebugLogLine( "Ip #local.ipAddress# is in range '#local.spfitem#'" );
+									appendDebugLogLine( "Ip #local.ipAddress# is in range '#listLast( local.spfitem, ":" )#'" );
 									return true;
+								} else {
+									appendDebugLogLine( "Ip #local.ipAddress# is NOT in range '#listLast( local.spfitem, ":" )#'" );
 								}
 
-							} else {
-								// if IP is a single IP addresse
-								if ( local.spfitem == local.ipAddress ) {
-									appendDebugLogLine( "Ip #local.ipAddress#=='#local.spfitem#': true" );
-									return true;
-								}
-							}
-
+							
 						}
 
 
