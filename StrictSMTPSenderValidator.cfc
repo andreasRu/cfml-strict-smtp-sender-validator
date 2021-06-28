@@ -221,7 +221,7 @@ component {
 			if( hasSenderIPPTR( local.ipAddress ) is false ){
 				
 				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is NOT of '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Sender hasn't any PTR for '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
+				this.resultSMTPVerifier[ "reason" ]= "Sender hasn't any PTR for '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' that is part of '#local.domainName#'";
 				this.resultSMTPVerifier[ "result" ]= false;
 				return this.resultSMTPVerifier;
 		
