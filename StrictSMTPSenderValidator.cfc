@@ -4,13 +4,13 @@
  * behalf of an email address (e.g. someaddress@emaildomain.com ) or an email domain (e.g. @emaildomain.com).
  * This component doesn't follow all SPF rules as of https://tools.ietf.org/html/rfc7208 and uses a very strict approach
  * like many top email providers do. Caution: IPv6 is NOT SUPPORTED!
- * Created by https://github.com/andreasRu 
- **/
+ * Created by https://github.com/andreasRu
+  */
 component {
 
 	property 	name="debugLog" type="string";
 	property 	name="debugLogLevel" type="number";
-	property 	name="smtpSenderValidatorResult" type="struct"; 
+	property 	name="resultSMTPVerifier" type="struct"; 
 	
 	/**
 	 * Constructor for SMTP Verifier with debugging possibility 
@@ -19,13 +19,14 @@ component {
 
 		this.debugLog = "";
 		this.debugLogLevel = arguments.debugLogLevel;
-		this.smtpSenderValidatorResult= {};
+		this.resultSMTPVerifier= {};
 
 		if( this.debugLogLevel > 0 ) {
-				appendDebugLogLine( "Component StrictSMTPSenderValidator initialized" ); 
+				appendDebugLogLine( "Component SMTPverifier initialized" ); 
 			} 
+
 		
-		verifyAndInstallDependencies();
+			verifyAndInstallDependencies();
 
 		return this;
 	}
@@ -86,10 +87,12 @@ component {
 	 */
 	public struct function isSendersIPAllowedForEmailAddress(
 		required string ipAddress,
-		required string emailAddress ) {
+		required string emailAddress,
+		required string heloSMTPString="" ) {
 			
 			local.ipAddress = arguments.ipAddress;
 			local.emailAddress = arguments.emailAddress;
+			local.heloSMTPString = arguments.heloSMTPString;
 			local.ipAddressOfDomainName = "";
 			local.domainName= "";
 	
@@ -112,9 +115,9 @@ component {
 				appendDebugLogLine( "EmailAddress '#encodeforHTML(local.emailAddress)#' is syntatically not valid" );
 				
 				// break here and send component data
-				this.smtpSenderValidatorResult[ "reason" ]="Email-address not valid";
-				this.smtpSenderValidatorResult[ "result" ]= false;
-				return this.smtpSenderValidatorResult;
+				this.resultSMTPVerifier[ "reason" ]="Email-address not valid";
+				this.resultSMTPVerifier[ "result" ]= false;
+				return this.resultSMTPVerifier;
 
 			};
 
@@ -140,32 +143,20 @@ component {
 			appendDebugLogLine( "<hr><b>*** CHECK 1 Whitelists:</b> Verify if the senders IP  '#local.ipAddress#' is whitelisted");
 			if( isIPAddressWhitelisted( local.ipAddress,  local.domainName ) ){
 				
-				appendDebugLogLine( "<b>Final-Whitelist:</b> IP '#local.ipAddress#' IS statically whitelisted for @#local.domainName#" );
-				this.smtpSenderValidatorResult[ "reason" ]= "Senders IP '#local.ipAddress#' is statically whitelisted for @#local.domainName#";
-				this.smtpSenderValidatorResult[ "result" ]= true;
-				return this.smtpSenderValidatorResult;
+				appendDebugLogLine( "IP '#local.ipAddress#' IS statically whitelisted for @#local.domainName#" );
+				this.resultSMTPVerifier[ "reason" ]= "Senders IP '#local.ipAddress#' is statically whitelisted for @#local.domainName#";
+				this.resultSMTPVerifier[ "result" ]= true;
+				return this.resultSMTPVerifier;
 
 			} else {
 
-				appendDebugLogLine( "<b>Final-Whitelist:</b> Senders IP '#local.ipAddress#' is NOT Whitelisted" );
+				appendDebugLogLine( "Senders IP '#local.ipAddress#' is NOT Whitelisted" );
 				//Don't break here
 
 			};
 
 
 
-			/**
-			* 	SPF Entry Check
-			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 2 SPF Entries:</b> Verify if Senders IP #local.ipAddress# is allowed to send Email on behalf of '#local.domainName#' by CALLING: isSendersIpAllowedBySPF( '#arguments.ipAddress#', '#domainName#'')" );
-			if ( isSendersIpAllowedBySPF( local.ipAddress, local.domainName ) ) {
-				appendDebugLogLine( "<b>Final-SPF:</b> Senders IP #local.ipAddress# is allowed to send by SPF" );
-				this.smtpSenderValidatorResult[ "reason" ]= "SPFcheck for '#local.ipAddress#' OK";
-				this.smtpSenderValidatorResult[ "result" ]= true;
-				return this.smtpSenderValidatorResult;
-			} else {
-				appendDebugLogLine( "<b>Final-SPF:</b> Senders IP #local.ipAddress# is NOT ALLOWED to send by SPF" );
-			};
 
 
 
@@ -173,16 +164,20 @@ component {
 			/**
 			* 	DNS "A" Entry Check
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 3 DNS-A Entries:</b>  Verify if the senders IP #local.ipAddress# is the same as in 'A'-DNS-entry for '#local.domainName#'" );
+			appendDebugLogLine( "<hr><b>*** CHECK 2 DNS-A Entries:</b>  Verify if the senders IP #local.ipAddress# is the same as in 'A'-DNS-entry for '#local.domainName#'" );
 			
-			if( isSendersIPAllowedByA( local.ipAddress, local.domainName) ) {
-				appendDebugLogLine( "<b>Final-A:</b> Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'" );
-				this.smtpSenderValidatorResult[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'";
-				this.smtpSenderValidatorResult[ "result" ]= true;
-				return this.smtpSenderValidatorResult;
+			if( isSendersIPAllowedByA( local.ipAddress, local.domainName) is true ) {
+				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'" );
+				this.resultSMTPVerifier[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'";
+				this.resultSMTPVerifier[ "result" ]= true;
+				return this.resultSMTPVerifier;
 			} else {
-				appendDebugLogLine( "<b>Final-A:</b> SendersIP '#local.ipAddress#' doesn't correspond to A-Entry" );
+				appendDebugLogLine( "SendersIP '#local.ipAddress#' doesn't correspond to A-Entry" );
+				//Don't break here, because SMTP server IP still can differ from (e.g MX or SPF)
 			};
+
+
+
 
 
 
@@ -190,49 +185,126 @@ component {
 			/**
 			* 	DNS "MX" Entry Check
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 4 MX-Entries:</b> Verify if the senders IP #local.ipAddress# is the same IP as in 'MX'-DNS-entry by CALLING: isSendersIpAllowedByMX( '#local.ipAddress#'' , '#local.domainName#')" );
+			appendDebugLogLine( "<hr><b>*** CHECK 3 MX-Entries:</b> Verify if the senders IP #local.ipAddress# is the same IP as in 'MX'-DNS-entry by CALLING: isSendersIpAllowedByMX( '#local.ipAddress#'' , '#local.domainName#')" );
 			
-			if( isSendersIPAllowedByMX( local.ipAddress, local.domainName) ){
-				appendDebugLogLine( "<b>Final-MX:</b> Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'" );
-				this.smtpSenderValidatorResult[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'";
-				this.smtpSenderValidatorResult[ "result" ]= true;
-				return this.smtpSenderValidatorResult;
-			} else {
-				appendDebugLogLine( "<b>Final-MX:</b> SendersIP '#local.ipAddress#' doesn't correspond to MX-Entry" );
+			if( isSendersIPAllowedByMX( local.ipAddress, local.domainName) is true ){
+				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'" );
+				this.resultSMTPVerifier[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'MX'-DNS-entry for '#local.domainName#'";
+				this.resultSMTPVerifier[ "result" ]= true;
+				return this.resultSMTPVerifier;
 			};
+
+
+
+
+
+
+
+			/**
+			* 	SPF Entry Check
+			*/	
+			appendDebugLogLine( "<hr><b>*** CHECK 6 SPF Entries:</b> Verify if Senders IP #local.ipAddress# is allowed to send Email on behalf of '#local.domainName#' by CALLING: isSendersIpAllowedBySPF( '#arguments.ipAddress#', '#domainName#'')" );
+			if ( isSendersIpAllowedBySPF( local.ipAddress, local.domainName ) ) {
+				appendDebugLogLine( "SPF: true" );
+				this.resultSMTPVerifier[ "reason" ]= "SPFcheck for '#local.ipAddress#' OK";
+				this.resultSMTPVerifier[ "result" ]= true;
+				return this.resultSMTPVerifier;
+			};
+
+
+			
+			/**
+			* 	DNS "PTR" Entry Check come from same Domain
+			*/	
+			appendDebugLogLine( "<hr><b>*** CHECK 7a PTR-Entries:</b> Verify if the senders IP #local.ipAddress# has at least one PTR-Entry by calling hasSenderIPPTR( '#local.ipAddress#' )" );
+			
+			if( hasSenderIPPTR( local.ipAddress ) is false ){
+				
+				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is NOT of '#local.domainName#'" );
+				this.resultSMTPVerifier[ "reason" ]= "Sender hasn't any PTR for '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
+				this.resultSMTPVerifier[ "result" ]= false;
+				return this.resultSMTPVerifier;
+		
+			};
+
 
 
 
 			/**
 			* 	DNS "PTR" Entry Check come from same Domain
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 5 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
+			appendDebugLogLine( "<hr><b>*** CHECK 7 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
 			
-			if( isSendersIPAllowedByPTR( local.ipAddress, local.domainName) ){
+			if( isSendersIPAllowedByPTR( local.ipAddress, local.domainName) is true ){
 				
-				appendDebugLogLine( "<b>Final-PTR:</b> PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
-				this.smtpSenderValidatorResult[ "reason" ]= "Senders PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
-				this.smtpSenderValidatorResult[ "result" ]= true;
-				return this.smtpSenderValidatorResult;
+				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
+				this.resultSMTPVerifier[ "reason" ]= "Senders PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
+				this.resultSMTPVerifier[ "result" ]= true;
+				return this.resultSMTPVerifier;
 		
-			} else {
-				appendDebugLogLine( "<b>Final-PTR:</b> SendersIP '#local.ipAddress#' doesn't correspond to PTR-Entry" );
 			};
 
+
+
+
+
+
+
+			/**
+			* 	Resolve HELO if string has been submitted
+			*/	
+			appendDebugLogLine( "<hr><b>*** CHECK 8 EHLO:</b> Verify if Senders EHLO resolves to an IP address" );
+			if ( len( trim(local.heloSMTPString) ) is 0 ){
+				appendDebugLogLine( "No HELO String submitted, check skipped." );
+
+			} else {
+				local.heloIPAddress = getIpByDomain( local.heloSMTPString );
+
+				if( local.heloIPAddress is "0.0.0.0" ){
+					appendDebugLogLine( "Senders HELO String can't be resolved'" );
+					this.resultSMTPVerifier[ "reason" ]= "EHLO command can't be resolved'";
+					this.resultSMTPVerifier[ "result" ]= false;
+					
+					return this.resultSMTPVerifier;
+
+				} else {
+					appendDebugLogLine( "Senders HELO String resolves to '#local.heloIPAddress#'" );
+				}
+
+			};
 
 		
 
 
 		// final return	
-		this.smtpSenderValidatorResult[ "reason" ]= "Sender Policy not complied";
-		this.smtpSenderValidatorResult[ "result" ]= false;
-		return this.smtpSenderValidatorResult;
+		this.resultSMTPVerifier[ "reason" ]= "Sender Policy not complied";
+		this.resultSMTPVerifier[ "result" ]= false;
+		return this.resultSMTPVerifier;
 
 
 	}
 
 
-			
+	/**
+	* @hint returns true if the submitted HELO string is a valid registrered Domain Name (DNS);
+	*/
+	private boolean function hasSendersValidHelo( 
+		required string heloSMTPString ){
+				
+			local.HeloIPAddress = getDNSRecordByType( arguments.heloSMTPString, "a");
+			if ( local.HeloIPAddress!="0.0.0.0" ) {
+	
+				return true;
+	
+			} else {
+	
+				return false;
+	
+			};
+
+	}
+
+		
 	/**
 	* @hint returns true if an IPAddress is manually whitelisted;
 	*/
@@ -260,46 +332,62 @@ component {
 			};
 
 	}
+		
+	/**
+	* @hint returns true if IP's 'PTR' comes from same network domain from email
+	* Example: t-online.de and mout.t-online.de return true
+	*/
+	private boolean function isSendersIPAllowedByPTR( 
+		required string ipAddress,
+		required string domainName ){
+
+			local.ipAddress = arguments.ipAddress;
+			local.domainName = arguments.domainName;
+
+			local.inAddrArpaDomain = listToArray( local.ipAddress, ".").reverse().toList(".") & ".in-addr.arpa";
+			appendDebugLogLine( "Calling function: getDNSRecordByType( '#encodeforHTML( local.inAddrArpaDomain )#', 'PTR')" );
+			local.PTRDomainDNSEntry = getDNSRecordByType( local.inAddrArpaDomain, "PTR" );
+
+			local.PTRDomainDNSEntry = listLast( left( local.PTRDomainDNSEntry, len( local.PTRDomainDNSEntry )-1), " ");
+			
+			appendDebugLogLine( "DNS QUERY: PTR for IP '#local.ipAddress#' is '#local.PTRDomainDNSEntry#'" );
+			
+			if ( right(local.PTRDomainDNSEntry, len( "." & local.domainName )) == "." & local.domainName ){
+				appendDebugLogLine( "senders IP '#local.ipAddress#' PTR comes from same Network as is '#local.domainName#'" );
+				return true;
+			} else {
+				appendDebugLogLine( "senders IP '#local.ipAddress#' PTR DOES NOT come from same Network as is '#local.domainName#'" );
+				return false;	
+			};
+	}
 
 
 
 	/**
-	* @hint returns an array of Whitelisted IPs for a domain name;
+	* @hint returns true if IP's 'PTR' comes from same network domain from email
+	* Example: t-online.de and mout.t-online.de return true
 	*/
-	private array function getWhitelistedIPsForDomainArray( required string domainName ) {
+	private boolean function hasSenderIPPTR( 
+		required string ipAddress ){
 
-		local.domainName = arguments.domainName;
+			local.ipAddress = arguments.ipAddress;
+			
+			local.inAddrArpaDomain = listToArray( local.ipAddress, ".").reverse().toList(".") & ".in-addr.arpa";
+			appendDebugLogLine( "Calling function: getDNSRecordByType( '#encodeforHTML( local.inAddrArpaDomain )#', 'PTR')" );
+			local.PTRDomainDNSEntry = getDNSRecordByType( local.inAddrArpaDomain, "PTR" );
 
-
-		if ( local.domainName is "t-online.de" ) {
-		
-			appendDebugLogLine( "Returning array of whitlisted IPs for #local.domainName#" );
-			return ["194.25.134.16","194.25.134.17","194.25.134.18","194.25.134.19","194.25.134.20","194.25.134.21","194.25.134.22","194.25.134.80","194.25.134.81","194.25.134.82","194.25.134.83","194.25.134.84","194.25.134.85","194.25.134.86"]
-		
-		} else if ( local.domainName is "somedomain.cctld" ) {
-		
-			appendDebugLogLine(  "Returning array of whitlisted IPs for #local.domainName#" );
-			return ["194.25.134.16","194.25.134.17"]
-		
-		} else {
-		
-			return [];
-		
-		}
+			local.PTRDomainDNSEntry = listLast( left( local.PTRDomainDNSEntry, len( local.PTRDomainDNSEntry )-1), " ");
+			
+			appendDebugLogLine( "DNS QUERY: PTR for IP '#local.ipAddress#' is '#local.PTRDomainDNSEntry#'" );
+			
+			if ( local.PTRDomainDNSEntry != '' ){
+				appendDebugLogLine( "senders IP has an PTR Entry '#local.PTRDomainDNSEntry#'" );
+				return true;
+			} else {
+				appendDebugLogLine( "senders IP has NO PTR Entry at all" );
+				return false;	
+			};
 	}
-
-
-	/**
-	* @hint returns an array of static whitelisted IPs;
-	*/
-	private array function getWhitelistedIPsStatic() {
-
-		return [
-			"194.25.134.16",
-			"194.25.134.17",
-			];
-	}
-		
 		
 	/**
 	* @hint returns true if IP for a domain name is also listed as 'A' server in DNS;
@@ -351,11 +439,11 @@ component {
 						appendDebugLogLine( "senders IP '#local.ipAddress#' is NOT A IP '#local.aItemIP#'" );
 						
 
-					};
+					}
 						
 	
 					
-				};
+				}
 	
 				return false;
 	
@@ -365,10 +453,9 @@ component {
 				appendDebugLogLine( "Domain '#arguments.domainName#' has no IP defined as a A and is NOT a 'A' server" );
 				return false;
 	
-			};
+			}
 
 	}
-
 
 	/**
 	* @hint returns true if IP for a domain name is also listed as 'MX' server in DNS;
@@ -447,36 +534,42 @@ component {
 			}
 	}
 
-
 	/**
-	* @hint returns true if IP's 'PTR' comes from similar network domain as of email domain
-	* Example: t-online.de and mout.t-online.de return true
+	* @hint returns an array of Whitelisted IPs for a domain name;
 	*/
-	private boolean function isSendersIPAllowedByPTR( 
-		required string ipAddress,
-		required string domainName ){
+	private array function getWhitelistedIPsForDomainArray( required string domainName ) {
 
-			local.ipAddress = arguments.ipAddress;
-			local.domainName = arguments.domainName;
+		local.domainName = arguments.domainName;
 
-			local.inAddrArpaDomain = listToArray( local.ipAddress, ".").reverse().toList(".") & ".in-addr.arpa";
-			appendDebugLogLine( "Calling function: getDNSRecordByType( '#encodeforHTML( local.inAddrArpaDomain )#', 'PTR')" );
-			local.PTRDomainDNSEntry = getDNSRecordByType( local.inAddrArpaDomain, "PTR" );
 
-			local.PTRDomainDNSEntry = listLast( left( local.PTRDomainDNSEntry, len( local.PTRDomainDNSEntry )-1), " ");
-			
-			appendDebugLogLine( "DNS QUERY: PTR for IP '#local.ipAddress#' is '#local.PTRDomainDNSEntry#'" );
-			
-			if ( right(local.PTRDomainDNSEntry, len( "." & local.domainName )) == "." & local.domainName ){
-				appendDebugLogLine( "sender '#local.PTRDomainDNSEntry#' is part of '#local.domainName#'" );
-				return true;
-			} else {
-				appendDebugLogLine( "senders '#local.PTRDomainDNSEntry#' DOESN't seem to come from '#local.domainName#'" );
-				return false;	
-			};
+		if ( local.domainName is "t-online.de" ) {
+		
+			appendDebugLogLine( "Returning array of whitlisted IPs for #local.domainName#" );
+			return ["194.25.134.16","194.25.134.17","194.25.134.18","194.25.134.19","194.25.134.20","194.25.134.21","194.25.134.22","194.25.134.80","194.25.134.81","194.25.134.82","194.25.134.83","194.25.134.84","194.25.134.85","194.25.134.86"]
+		
+		} else if ( local.domainName is "somedomain.cctld" ) {
+		
+			appendDebugLogLine(  "Returning array of whitlisted IPs for #local.domainName#" );
+			return ["194.25.134.16","194.25.134.17"]
+		
+		} else {
+		
+			return [];
+		
+		}
 	}
 
-	
+
+	/**
+	* @hint returns an array of static whitelisted IPs;
+	*/
+	private array function getWhitelistedIPsStatic() {
+
+		return [
+			"194.25.134.16",
+			"194.25.134.17",
+			]
+	}
 
 	/**
 	 * @hint returns true if the given IPv4 address range (ipRange) contains the given IP address (ipAddress).
@@ -570,151 +663,167 @@ component {
 		required string domainName,
 		required numeric spfHops = 0 ) {
 
-			variables.spfHops = arguments.spfHops;
+			local.spfHops = arguments.spfHops;
 			local.domainsAlreadyChecked= []; 
 			local.ipAddress= arguments.ipAddress; 
-			local.domainName= arguments.domainName;
-
-
-			variables.spfHops++;
-					
+			local.domainName= arguments.domainName; 
 
 			try {
-					
-					appendDebugLogLine( "*** SPF-HOP INIT VALUE #variables.spfHops#***: Check if SenderIP #local.ipAddress# is allowed to send as specified in SPF-Entry made by #local.domainName#");
-					
-					// Not allow more then 9 Hops
-					if ( variables.spfHops >= 10 ) {
 
+				appendDebugLogLine( "*** SPF-HOP INIT VALUE #local.spfHops#***: Check if SenderIP #local.ipAddress# is allowed to send as specified in SPF-Entry made by #local.domainName#");
+				
+				// Not allow more then 9 Hops
+				if ( local.spfHops >= 10 ) {
+
+					return false;
+
+				};
+
+				if ( local.spfHops == 0 ) {
+				
+					// first round: initialize and populate array of already verified domains.
+					arrayAppend ( local.domainsAlreadyChecked, replacenocase( local.domainName, ".", "_", "ALL") );
+					appendDebugLogLine( "++++++ SPF check initialized spfHops:#local.spfHops# ++++++" );
+					appendDebugLogLine( "Domain '#local.domainName#' added to domainsAlreadyChecked array."  );
+				
+				} else {
+
+					if ( arrayContains( local.domainsAlreadyChecked, replacenocase( local.domainName, ".", "_", "ALL" ) ) ) {
+						appendDebugLogLine( "<b>'#local.domainsAlreadyChecked#' DOMAIN ALREADY CHECKED! Quit</b>" );
 						return false;
-
 					};
 
-					if ( variables.spfHops == 1 ) {
+				};
+
+			
+				appendDebugLogLine( "SPF-HOP #local.spfHops#: Calling function getDNSRecordByType( '#local.domainName#', 'TXT') to retrieve a comma separed list of quoted strings for all DNS 'TXT'" );
+				local.dnsRecord = getDNSRecordByType( local.domainName, "TXT" );
+				appendDebugLogLine( "<b>SPF-HOP #local.spfHops# DNS TXTs RECORDs RETRIEVED (comma separed list of quoted strings):</b><div style='border:1px solid navy;min-height:20px;padding:5px;max-width:500px;'>#encodeForHTML(local.dnsRecord)#</div>" );
+
+				if ( findNoCase( "v=spf1", local.dnsRecord ) ) {
+
+					local.pos1 = findNoCase( "v=spf1", local.dnsRecord );
+					local.pos2 = findNoCase( chr( 34 ), local.dnsRecord, local.pos1 + 1 );
+					local.spfrecord = mid( local.dnsRecord, local.pos1, local.pos2 - local.pos1 );
+
+					appendDebugLogLine( "spfrecord: #local.spfrecord#" );
+					local.SpfListArray = listToArray( local.spfrecord, " " );
 					
-						// first round: initialize and populate array of already verified domains.
-						arrayAppend ( local.domainsAlreadyChecked, replacenocase( local.domainName, ".", "_", "ALL") );
-						appendDebugLogLine( "++++++ SPF check initialized spfHops:#variables.spfHops# ++++++" );
-						appendDebugLogLine( "Domain '#local.domainName#' added to domainsAlreadyChecked array."  );
-					
-					} else {
+					for ( local.spfitem in local.SpfListArray ) {
 
-						if ( arrayContains( local.domainsAlreadyChecked, replacenocase( local.domainName, ".", "_", "ALL" ) ) ) {
-							appendDebugLogLine( "<b>'#local.domainsAlreadyChecked#' DOMAIN ALREADY CHECKED! Quit</b>" );
-							return false;
-						};
+						appendDebugLogLine( "ITEM: '#local.spfitem#'" );
+						local.DNSRecordTypesInfSPF = [ "a", "mx" ];
 
-					};
-
-					
-					appendDebugLogLine( "SPF-HOP #variables.spfHops#: Calling function getDNSRecordByType( '#local.domainName#', 'TXT') to retrieve a comma separed list of quoted strings for all DNS 'TXT'" );
-					local.dnsRecord = getDNSRecordByType( local.domainName, "TXT" );
-					appendDebugLogLine( "<b>SPF-HOP #variables.spfHops# DNS TXTs RECORDs RETRIEVED (comma separed list of quoted strings):</b><div style='border:1px solid navy;min-height:20px;padding:5px;max-width:500px;'>#encodeForHTML(local.dnsRecord)#</div>" );
-					
-					
-					if ( findNoCase( "v=spf1", local.dnsRecord ) ) {
-
-						local.pos1 = findNoCase( "v=spf1", local.dnsRecord );
-						local.pos2 = findNoCase( chr( 34 ), local.dnsRecord, local.pos1 + 1 );
-						local.spfrecord = mid( local.dnsRecord, local.pos1, local.pos2 - local.pos1 );
-
-						appendDebugLogLine( "spfrecord: #local.spfrecord#" );
-						local.SpfListArray = listToArray( local.spfrecord, " " );
-						
-						for ( local.spfitem in local.SpfListArray ) {
-
-							appendDebugLogLine( "ITEM: #local.spfitem#" );
-							local.DNSRecordTypesInfSPF = [ "A", "MX" ];
-
-							for ( local.DNSRecordType in local.DNSRecordTypesInfSPF ) {
+						for ( local.DNSRecordType in local.DNSRecordTypesInfSPF ) {
+							
+							// DNS A records for domain
+							if ( local.spfitem == local.DNSRecordType ) {
 								
-								// DNS A records for domain
-								if ( local.spfitem == local.DNSRecordType ) {
-									
-									local.tmpipaddress = getIpByDomain( local.domainName );
-									appendDebugLogLine( "#local.DNSRecordType#:#local.tmpipaddress#" );
+								local.tmpipaddress = getIpByDomain( local.domainName );
+								appendDebugLogLine( "#local.DNSRecordType#:#local.tmpipaddress#" );
 
-									if ( tmpipaddress == local.ipAddress ) {
-										appendDebugLogLine( "SenderIPAddress is #local.DNSRecordType#:#local.tmpipaddress#" );
-										return true;
-
-									}
+								// count HOP because of https://datatracker.ietf.org/doc/html/rfc4408 (see 10.1 a,mx,include,redirect count as hop)
+								local.spfHops++;
+								appendDebugLogLine( "HOP-Counted(+1) because of '#local.DNSRecordType#' hop is now #local.spfHops#" );
+								
+								
+								if ( tmpipaddress == local.ipAddress ) {
+									appendDebugLogLine( "SenderIPAddress is #local.DNSRecordType#:#local.tmpipaddress#" );
+									return true;
 
 								}
 
-
-								// DNS A/ records for domain (all IPs in defined Range)
-								if ( left( local.spfitem, len( "#local.DNSRecordType#/" ) ) == "#local.DNSRecordType#/" ) {
-									
-									local.tmpipaddress = getIpByDomain( local.domainName );
-									appendDebugLogLine("isIpInRanges( #local.tmpipaddress##replacenocase( local.spfitem,'#local.DNSRecordType#/','/','ALL' )# , #local.ipAddress#);"); 
-									return local.isIpInRanges( local.tmpipaddress & replacenocase( local.spfitem,"#local.DNSRecordType#/","/","ALL" ) , local.ipAddress);	
-								
-								}
-
-
-								// DNS A: records of named domain with ranges
-								if ( left( local.spfitem, len( "#local.DNSRecordType#:" ) ) == "#local.DNSRecordType#:" ) {
-
-									appendDebugLogLine( "#local.DNSRecordType#: FOUND!!!" );
-
-									if ( findNoCase( "/", local.spfitem ) ) {
-
-										local.ipOfDomain = getIpByDomain( replacenocase( listfirst( local.spfitem, "/" ), "#local.DNSRecordType#:", "", "ALL" ) );
-										appendDebugLogLine( "Allowed SendersIP is: " &  local.IpOfDomain & "/" & listlast( local.spfitem,"/") & "" );
-										
-										return isIpInRanges( local.ipOfDomain & "/" & listlast( local.spfitem, "/" ), arguments.ipAddress );
-
-									} else {
-
-										local.ipOfDomain = getIpByDomain( replacenocase( local.spfitem, "#local.DNSRecordType#:", "", "ALL" ) );
-										appendDebugLogLine( "Allowed SendersIP is: " & local.ipOfDomain & "" );
-
-										if ( local.ipOfDomain == local.ipAddress ) {
-											return true;
-										};
-									};
-								};
-							};
-
-
-							if ( left( local.spfitem, len( "ip4:" ) ) == "ip4:" ) {
-
-								local.tmpisIpInRanges = isIpInRanges( listLast( local.spfitem, ":" ), local.ipAddress );
-						
-									if ( local.tmpisIpInRanges ) {
-										appendDebugLogLine( "Ip #local.ipAddress# is in range '#listLast( local.spfitem, ":" )#'" );
-										return true;
-									} else {
-										appendDebugLogLine( "Ip #local.ipAddress# is NOT in range '#listLast( local.spfitem, ":" )#'" );
-									}
-
-								
 							}
 
 
-							local.SPFRecordTypesInSPF = [ "include:", "redirect=" ];
+							// DNS A/ records for domain (all IPs in defined Range)
+							if ( left( local.spfitem, len( "#local.DNSRecordType#/" ) ) == "#local.DNSRecordType#/" ) {
+								
+								local.tmpipaddress = getIpByDomain( local.domainName );
+								appendDebugLogLine("isIpInRanges( #local.tmpipaddress##replacenocase( local.spfitem,'#local.DNSRecordType#/','/','ALL' )# , #local.ipAddress#);"); 
+								return local.isIpInRanges( local.tmpipaddress & replacenocase( local.spfitem,"#local.DNSRecordType#/","/","ALL" ) , local.ipAddress);	
+							
+							}
 
-							for ( local.SPFRecordType in local.SPFRecordTypesInSPF ) {
 
-								if ( left( local.spfitem, len( local.SPFRecordType ) ) == local.SPFRecordType ) {
+							// DNS A: records of named domain with ranges
+							if ( left( local.spfitem, len( "#local.DNSRecordType#:" ) ) == "#local.DNSRecordType#:" ) {
 
-									appendDebugLogLine( "Checking #local.spfitem#" );
-									local.includeDomainName = replacenocase( local.spfitem, local.SPFRecordType, "", "ALL" );
-									appendDebugLogLine( "#local.spfitem#: Rekursive call isSendersIpAllowedBySPF('#local.ipAddress#','#local.includeDomainName#',#variables.spfHops#);" );
-									local.tmpisSendersIpAllowedBySPF = isSendersIpAllowedBySPF( local.ipAddress, local.includeDomainName, variables.spfHops );
+								appendDebugLogLine( "#local.DNSRecordType#: FOUND!!!" );
 
-									if ( local.tmpisSendersIpAllowedBySPF ) {
+								if ( findNoCase( "/", local.spfitem ) ) {
 
+									local.ipOfDomain = getIpByDomain( replacenocase( listfirst( local.spfitem, "/" ), "#local.DNSRecordType#:", "", "ALL" ) );
+									appendDebugLogLine( "Allowed SendersIP is: " &  local.IpOfDomain & "/" & listlast( local.spfitem,"/") & "" );
+									
+									return isIpInRanges( local.ipOfDomain & "/" & listlast( local.spfitem, "/" ), arguments.ipAddress );
+
+								} else {
+
+									local.ipOfDomain = getIpByDomain( replacenocase( local.spfitem, "#local.DNSRecordType#:", "", "ALL" ) );
+									appendDebugLogLine( "Allowed SendersIP is: " & local.ipOfDomain & "" );
+
+									if ( local.ipOfDomain == local.ipAddress ) {
 										return true;
-
 									};
+								};
+							};
+						};
+
+
+
+
+						if ( left( local.spfitem, len( "ip4:" ) ) == "ip4:" ) {
+
+							// if IP is a range
+							if ( findNoCase( "/", local.spfitem ) ) {
+								
+								local.tmpisIpInRanges = isIpInRanges( replacenocase( local.spfitem, "ip4:", "", "ALL" ), local.ipAddress );
+					
+								if ( local.tmpisIpInRanges is true ) {
+									appendDebugLogLine( "Ip #local.ipAddress# is in range '#local.spfitem#'" );
+									return true;
+								}
+
+							} else {
+								// if IP is a single IP addresse
+								if ( local.spfitem == local.ipAddress ) {
+									appendDebugLogLine( "Ip #local.ipAddress#=='#local.spfitem#': true" );
+									return true;
+								}
+							}
+
+						}
+
+
+						local.SPFRecordTypesInSPF = [ "include:", "redirect=" ];
+
+						for ( local.SPFRecordType in local.SPFRecordTypesInSPF ) {
+
+							if ( left( local.spfitem, len( local.SPFRecordType ) ) == local.SPFRecordType ) {
+
+								appendDebugLogLine( "Checking #local.spfitem#" );
+								
+								// count HOP because of https://datatracker.ietf.org/doc/html/rfc4408 (see 10.1 a,mx,include,redirect count as hop)
+								local.spfHops++;
+								appendDebugLogLine( "HOP-Counted(+1) because of '#local.spfitem#' hop is now #local.spfHops#" );
+
+								
+								local.includeDomainName = replacenocase( local.spfitem, local.SPFRecordType, "", "ALL" );
+								appendDebugLogLine( "#local.spfitem#: Rekursive call isSendersIpAllowedBySPF('#local.ipAddress#','#local.includeDomainName#',#local.spfHops#);" );
+								local.tmpisSendersIpAllowedBySPF = isSendersIpAllowedBySPF( local.ipAddress, local.includeDomainName, local.spfHops );
+
+								if ( local.tmpisSendersIpAllowedBySPF ) {
+
+									return true;
 
 								};
 
 							};
+
 						};
 					};
+				};
 
 
 
