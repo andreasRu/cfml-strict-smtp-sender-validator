@@ -216,12 +216,12 @@ component {
 			/**
 			* 	DNS "PTR" Entry Check come from same Domain
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 7a PTR-Entries:</b> Verify if the senders IP #local.ipAddress# has at least one PTR-Entry by calling hasSenderIPPTR( '#local.ipAddress#' )" );
+			appendDebugLogLine( "<hr><b>*** CHECK 7.1 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# has at least one PTR-Entry by calling hasSenderIPPTR( '#local.ipAddress#' )" );
 			
 			if( hasSenderIPPTR( local.ipAddress ) is false ){
 				
-				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is NOT of '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Sender hasn't any PTR for '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' that is part of '#local.domainName#'";
+				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' does not exist" );
+				this.resultSMTPVerifier[ "reason" ]= "Sender hasn't any PTR for '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa'";
 				this.resultSMTPVerifier[ "result" ]= false;
 				return this.resultSMTPVerifier;
 		
@@ -233,12 +233,12 @@ component {
 			/**
 			* 	DNS "PTR" Entry Check come from same Domain
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 7 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
+			appendDebugLogLine( "<hr><b>*** CHECK 7.2 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
 			
 			if( isSendersIPAllowedByPTR( local.ipAddress, local.domainName) is true ){
 				
 				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Senders PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
+				this.resultSMTPVerifier[ "reason" ]= "Senders PTR is part of '#local.domainName#'";
 				this.resultSMTPVerifier[ "result" ]= true;
 				return this.resultSMTPVerifier;
 		
