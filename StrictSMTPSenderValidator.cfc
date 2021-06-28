@@ -5,6 +5,11 @@
  * This component doesn't follow all SPF rules as of https://tools.ietf.org/html/rfc7208 and uses a very strict approach
  * like many top email providers do. Caution: IPv6 is NOT SUPPORTED!
  * Created by https://github.com/andreasRu
+ * 1. Check: Does senders IP match a static Whitelisting?
+ * 2. Check: Does senders IP match an DNS-A-Entry of @emaildomain? 
+ * 3. Check: Does senders IP match an DNS-MX-Entry of @emaildomain?
+ * 4. Check: Is senders IP allowed to send emails in name of @emaildomain? 
+ * 5. Check: Does senders IPs DNS-PTR-Enry match @emaildomain?
   */
 component {
 
@@ -87,12 +92,10 @@ component {
 	 */
 	public struct function isSendersIPAllowedForEmailAddress(
 		required string ipAddress,
-		required string emailAddress,
-		required string heloSMTPString="" ) {
+		required string emailAddress ) {
 			
 			local.ipAddress = arguments.ipAddress;
 			local.emailAddress = arguments.emailAddress;
-			local.heloSMTPString = arguments.heloSMTPString;
 			local.ipAddressOfDomainName = "";
 			local.domainName= "";
 	
@@ -123,19 +126,10 @@ component {
 
 			
 
-
-
-
 			// Continue validation	
 			appendDebugLogLine( "Email address / email domain #encodeforHTML(local.emailAddress)# is syntatically correct. Continue verification" );
 			local.domainName = listLast( local.emailAddress, "@" );
 		
-
-
-
-
-
-
 
 			/**
 			* 	Static Whitelist Check
@@ -197,9 +191,6 @@ component {
 
 
 
-
-
-
 			/**
 			* 	SPF Entry Check
 			*/	
@@ -222,11 +213,11 @@ component {
 				
 				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' does not exist" );
 				this.resultSMTPVerifier[ "reason" ]= "Sender hasn't any PTR for '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa'";
+				// make PTR-Entry as a required characteristic 
 				this.resultSMTPVerifier[ "result" ]= false;
 				return this.resultSMTPVerifier;
 		
 			};
-
 
 
 
@@ -240,42 +231,12 @@ component {
 				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
 				this.resultSMTPVerifier[ "reason" ]= "Senders PTR is part of '#local.domainName#'";
 				this.resultSMTPVerifier[ "result" ]= true;
+				// make valid PTR entry as a required characteristic 
 				return this.resultSMTPVerifier;
 		
 			};
 
-
-
-
-
-
-
-			/**
-			* 	Resolve HELO if string has been submitted
-			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 8 EHLO:</b> Verify if Senders EHLO resolves to an IP address" );
-			if ( len( trim(local.heloSMTPString) ) is 0 ){
-				appendDebugLogLine( "No HELO String submitted, check skipped." );
-
-			} else {
-				local.heloIPAddress = getIpByDomain( local.heloSMTPString );
-
-				if( local.heloIPAddress is "0.0.0.0" ){
-					appendDebugLogLine( "Senders HELO String can't be resolved'" );
-					this.resultSMTPVerifier[ "reason" ]= "EHLO command can't be resolved'";
-					this.resultSMTPVerifier[ "result" ]= false;
-					
-					return this.resultSMTPVerifier;
-
-				} else {
-					appendDebugLogLine( "Senders HELO String resolves to '#local.heloIPAddress#'" );
-				}
-
-			};
-
 		
-
-
 		// final return	
 		this.resultSMTPVerifier[ "reason" ]= "Sender Policy not complied";
 		this.resultSMTPVerifier[ "result" ]= false;
@@ -284,25 +245,6 @@ component {
 
 	}
 
-
-	/**
-	* @hint returns true if the submitted HELO string is a valid registrered Domain Name (DNS);
-	*/
-	private boolean function hasSendersValidHelo( 
-		required string heloSMTPString ){
-				
-			local.HeloIPAddress = getDNSRecordByType( arguments.heloSMTPString, "a");
-			if ( local.HeloIPAddress!="0.0.0.0" ) {
-	
-				return true;
-	
-			} else {
-	
-				return false;
-	
-			};
-
-	}
 
 		
 	/**
