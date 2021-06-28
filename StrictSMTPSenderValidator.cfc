@@ -168,11 +168,11 @@ component {
 			
 			if( isSendersIPAllowedByA( local.ipAddress, local.domainName) is true ) {
 				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'";
+				this.resultSMTPVerifier[ "reason" ]= "Sender #local.ipAddress# is a registered IP with a 'A'-DNS-entry '#local.domainName#'";
 				this.resultSMTPVerifier[ "result" ]= true;
 				return this.resultSMTPVerifier;
 			} else {
-				appendDebugLogLine( "SendersIP '#local.ipAddress#' doesn't correspond to A-Entry" );
+				appendDebugLogLine( "SendersIP '#local.ipAddress#' doesn't correspond to A-Entry for '#local.domainName#'" );
 				//Don't break here, because SMTP server IP still can differ from (e.g MX or SPF)
 			};
 
@@ -415,28 +415,21 @@ component {
 					appendDebugLogLine( "<hr>Next A Entry #i#: " & aRecorditem );
 					local.aItemListArray = listToArray( aRecorditem, " " );
 					local.aItem= listLast(  aRecorditem, " ");
-
-					//remove any available right dot
-					if( right( local.aItem, 1 ) == "." ){
-						
-						appendDebugLogLine( "Cleaning dots from entry" );
-						local.aItem= left( local.aItem, -1);
-					}
-						
-					appendDebugLogLine( "Retrieving IP for '#aItem#'" );
-					local.aItemIP = getIpByDomain( trim(aItem) );
+	
+					local.aItemIP = trim(aItem);
+					
 					appendDebugLogLine( "<hr>Verifying if senders IP '#local.ipAddress#' equals A IP '#local.aItemIP#'" );
 
-					if ( local.aItemIP == local.ipAddress ) {
+					if ( trim(local.aItemIP) == local.ipAddress ) {
 
-						//SendersIP is MX-Server
-						appendDebugLogLine( "senders IP '#local.ipAddress#' is A IP '#local.aItemIP#'" );
+						//SendersIP is A-Server
+						appendDebugLogLine( "senders IP '#local.ipAddress#' is A-DNS-Entry IP '#local.aItemIP#'" );
 						return true;
 
 					} else {
 
-						//SendersIP is NOT MX-Server
-						appendDebugLogLine( "senders IP '#local.ipAddress#' is NOT A IP '#local.aItemIP#'" );
+						//SendersIP is NOT A-Server
+						appendDebugLogLine( "senders IP '#local.ipAddress#' is NOT A-DNS-Entry IP '#local.aItemIP#'" );
 						
 
 					}
