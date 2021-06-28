@@ -1,0 +1,18 @@
+{
+    "force":"true",
+    "name":"cfml-strict-smtp-sender-validator",
+    "JVM":{
+        "heapSize":"2048"
+    },
+    "web":{
+        "http":{
+            "port":"8080"
+        },
+        "webroot":"/",
+        "welcomeFiles": "testSmtpValidator.cfm"
+    },
+    "app":{
+        "serverHomeDirectory":"../.CommandBoxContexts/",
+        "cfengine":"lucee@5"
+    }
+}
