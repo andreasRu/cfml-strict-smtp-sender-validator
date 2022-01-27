@@ -4,13 +4,11 @@
  * behalf of an email address (e.g. someaddress@emaildomain.com ) or an email domain (e.g. @emaildomain.com).
  * This component doesn't follow all SPF rules as of https://tools.ietf.org/html/rfc7208 and uses a very strict approach
  * like many top email providers do. Caution: IPv6 is NOT SUPPORTED!
- * Created by https://github.com/andreasRu
- * 1. Check: Does senders IP match a static Whitelisting?
- * 2. Check: Does senders IP match an DNS-A-Entry of @emaildomain? 
- * 3. Check: Does senders IP match an DNS-MX-Entry of @emaildomain?
- * 4. Check: Is senders IP allowed to send emails in name of @emaildomain? 
- * 5. Check: Does senders IPs DNS-PTR-Enry match @emaildomain?
-  */
+ * 
+ * 1. It checks for hardcoded Whitelisted IPs (Static Whitelist Check)
+ * 2. It uses the DNS-SPF entries as they were all set with "-all" flag, ignoring any other flag (e.g. "~all").
+ * 3. If no SPF entry is found, it will look of the  
+ */
 component {
 
 	property 	name="debugLog" type="string";
@@ -92,10 +90,12 @@ component {
 	 */
 	public struct function isSendersIPAllowedForEmailAddress(
 		required string ipAddress,
-		required string emailAddress ) {
+		required string emailAddress,
+		required string heloSMTPString="" ) {
 			
 			local.ipAddress = arguments.ipAddress;
 			local.emailAddress = arguments.emailAddress;
+			local.heloSMTPString = arguments.heloSMTPString;
 			local.ipAddressOfDomainName = "";
 			local.domainName= "";
 	
@@ -112,24 +112,46 @@ component {
 				local.emailAddress = "someaddress" & local.emailAddress;
 
 			};
-				
-			if( !isValid( "email", local.emailAddress ) ){
-				
-				appendDebugLogLine( "EmailAddress '#encodeforHTML(local.emailAddress)#' is syntatically not valid" );
-				
-				// break here and send component data
-				this.resultSMTPVerifier[ "reason" ]="Email-address not valid";
-				this.resultSMTPVerifier[ "result" ]= false;
-				return this.resultSMTPVerifier;
 
-			};
+
+            try { 
+				
+                if( !isValid( "email", local.emailAddress ) ){
+                    
+                    appendDebugLogLine( "EmailAddress '#encodeforHTML(local.emailAddress)#' is syntatically not valid" );
+                    
+                    // break here and send component data
+                    this.resultSMTPVerifier[ "reason" ]="Email-address not valid";
+                    this.resultSMTPVerifier[ "result" ]= false;
+                    return this.resultSMTPVerifier;
+
+                };
+
+            } catch (any e) {
+
+                    
+                // break here and send component data
+                this.resultSMTPVerifier[ "reason" ]="Email-address validation is broken due to mail address mismatch and errored. Mail is treated as invalid.";
+                this.resultSMTPVerifier[ "result" ]= false;
+                return this.resultSMTPVerifier;
+            
+            }
 
 			
+
+
+
 
 			// Continue validation	
 			appendDebugLogLine( "Email address / email domain #encodeforHTML(local.emailAddress)# is syntatically correct. Continue verification" );
 			local.domainName = listLast( local.emailAddress, "@" );
 		
+
+
+
+
+
+
 
 			/**
 			* 	Static Whitelist Check
@@ -162,11 +184,11 @@ component {
 			
 			if( isSendersIPAllowedByA( local.ipAddress, local.domainName) is true ) {
 				appendDebugLogLine( "Senders IP #local.ipAddress# equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Sender #local.ipAddress# is a registered IP with a 'A'-DNS-entry '#local.domainName#'";
+				this.resultSMTPVerifier[ "reason" ]= "Senders equals #local.ipAddressOfDomainName# as specified in 'A'-DNS-entry for '#local.domainName#'";
 				this.resultSMTPVerifier[ "result" ]= true;
 				return this.resultSMTPVerifier;
 			} else {
-				appendDebugLogLine( "SendersIP '#local.ipAddress#' doesn't correspond to A-Entry for '#local.domainName#'" );
+				appendDebugLogLine( "SendersIP '#local.ipAddress#' doesn't correspond to A-Entry" );
 				//Don't break here, because SMTP server IP still can differ from (e.g MX or SPF)
 			};
 
@@ -191,6 +213,9 @@ component {
 
 
 
+
+
+
 			/**
 			* 	SPF Entry Check
 			*/	
@@ -207,13 +232,12 @@ component {
 			/**
 			* 	DNS "PTR" Entry Check come from same Domain
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 7.1 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# has at least one PTR-Entry by calling hasSenderIPPTR( '#local.ipAddress#' )" );
+			appendDebugLogLine( "<hr><b>*** CHECK 7a PTR-Entries:</b> Verify if the senders IP #local.ipAddress# has at least one PTR-Entry by calling hasSendersIPPTR( '#local.ipAddress#' )" );
 			
-			if( hasSenderIPPTR( local.ipAddress ) is false ){
+			if( hasSendersIPPTR( local.ipAddress ) is false ){
 				
-				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' does not exist" );
-				this.resultSMTPVerifier[ "reason" ]= "Sender hasn't any PTR for '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa'";
-				// make PTR-Entry as a required characteristic 
+				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
+				this.resultSMTPVerifier[ "reason" ]= "Sender hasn't any PTR for '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
 				this.resultSMTPVerifier[ "result" ]= false;
 				return this.resultSMTPVerifier;
 		
@@ -221,22 +245,53 @@ component {
 
 
 
+
 			/**
 			* 	DNS "PTR" Entry Check come from same Domain
 			*/	
-			appendDebugLogLine( "<hr><b>*** CHECK 7.2 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
+			appendDebugLogLine( "<hr><b>*** CHECK 7 PTR-Entries:</b> Verify if the senders IP #local.ipAddress# 'PTR'-DNS-entry by CALLING: isSendersIpAllowedByPTR( '#local.ipAddress#' , '#local.domainName#')" );
 			
 			if( isSendersIPAllowedByPTR( local.ipAddress, local.domainName) is true ){
 				
 				appendDebugLogLine( "PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' has same domainpart of '#local.domainName#'" );
-				this.resultSMTPVerifier[ "reason" ]= "Senders PTR is part of '#local.domainName#'";
+				this.resultSMTPVerifier[ "reason" ]= "Senders PTR '#listToArray( arguments.ipAddress, ".").reverse().toList(".")#.in-addr.arpa' is part of '#local.domainName#'";
 				this.resultSMTPVerifier[ "result" ]= true;
-				// make valid PTR entry as a required characteristic 
 				return this.resultSMTPVerifier;
 		
 			};
 
+
+
+
+
+
+
+			/**
+			* 	Resolve HELO if string has been submitted
+			*/	
+			appendDebugLogLine( "<hr><b>*** CHECK 8 EHLO:</b> Verify if Senders EHLO resolves to an IP address" );
+			if ( len( trim(local.heloSMTPString) ) is 0 ){
+				appendDebugLogLine( "No HELO String submitted, check skipped." );
+
+			} else {
+				local.heloIPAddress = getIpByDomain( local.heloSMTPString );
+
+				if( local.heloIPAddress is "0.0.0.0" ){
+					appendDebugLogLine( "Senders HELO String can't be resolved'" );
+					this.resultSMTPVerifier[ "reason" ]= "EHLO command can't be resolved'";
+					this.resultSMTPVerifier[ "result" ]= false;
+					
+					return this.resultSMTPVerifier;
+
+				} else {
+					appendDebugLogLine( "Senders HELO String resolves to '#local.heloIPAddress#'" );
+				}
+
+			};
+
 		
+
+
 		// final return	
 		this.resultSMTPVerifier[ "reason" ]= "Sender Policy not complied";
 		this.resultSMTPVerifier[ "result" ]= false;
@@ -245,6 +300,25 @@ component {
 
 	}
 
+
+	/**
+	* @hint returns true if the submitted HELO string is a valid registrered Domain Name (DNS);
+	*/
+	private boolean function hasSendersValidHelo( 
+		required string heloSMTPString ){
+				
+			local.HeloIPAddress = getDNSRecordByType( arguments.heloSMTPString, "a");
+			if ( local.HeloIPAddress!="0.0.0.0" ) {
+	
+				return true;
+	
+			} else {
+	
+				return false;
+	
+			};
+
+	}
 
 		
 	/**
@@ -309,7 +383,7 @@ component {
 	* @hint returns true if IP's 'PTR' comes from same network domain from email
 	* Example: t-online.de and mout.t-online.de return true
 	*/
-	private boolean function hasSenderIPPTR( 
+	private boolean function hasSendersIPPTR( 
 		required string ipAddress ){
 
 			local.ipAddress = arguments.ipAddress;
@@ -357,21 +431,28 @@ component {
 					appendDebugLogLine( "<hr>Next A Entry #i#: " & aRecorditem );
 					local.aItemListArray = listToArray( aRecorditem, " " );
 					local.aItem= listLast(  aRecorditem, " ");
-	
-					local.aItemIP = trim(aItem);
-					
+
+					//remove any available right dot
+					if( right( local.aItem, 1 ) == "." ){
+						
+						appendDebugLogLine( "Cleaning dots from entry" );
+						local.aItem= left( local.aItem, -1);
+					}
+						
+					appendDebugLogLine( "Retrieving IP for '#aItem#'" );
+					local.aItemIP = getIpByDomain( trim(aItem) );
 					appendDebugLogLine( "<hr>Verifying if senders IP '#local.ipAddress#' equals A IP '#local.aItemIP#'" );
 
-					if ( trim(local.aItemIP) == local.ipAddress ) {
+					if ( local.aItemIP == local.ipAddress ) {
 
-						//SendersIP is A-Server
-						appendDebugLogLine( "senders IP '#local.ipAddress#' is A-DNS-Entry IP '#local.aItemIP#'" );
+						//SendersIP is MX-Server
+						appendDebugLogLine( "senders IP '#local.ipAddress#' is A IP '#local.aItemIP#'" );
 						return true;
 
 					} else {
 
-						//SendersIP is NOT A-Server
-						appendDebugLogLine( "senders IP '#local.ipAddress#' is NOT A-DNS-Entry IP '#local.aItemIP#'" );
+						//SendersIP is NOT MX-Server
+						appendDebugLogLine( "senders IP '#local.ipAddress#' is NOT A IP '#local.aItemIP#'" );
 						
 
 					}
@@ -630,7 +711,8 @@ component {
 
 				};
 
-			
+				local.spfHops++;
+
 				appendDebugLogLine( "SPF-HOP #local.spfHops#: Calling function getDNSRecordByType( '#local.domainName#', 'TXT') to retrieve a comma separed list of quoted strings for all DNS 'TXT'" );
 				local.dnsRecord = getDNSRecordByType( local.domainName, "TXT" );
 				appendDebugLogLine( "<b>SPF-HOP #local.spfHops# DNS TXTs RECORDs RETRIEVED (comma separed list of quoted strings):</b><div style='border:1px solid navy;min-height:20px;padding:5px;max-width:500px;'>#encodeForHTML(local.dnsRecord)#</div>" );
@@ -646,7 +728,7 @@ component {
 					
 					for ( local.spfitem in local.SpfListArray ) {
 
-						appendDebugLogLine( "ITEM: '#local.spfitem#'" );
+						appendDebugLogLine( "ITEM: #local.spfitem#" );
 						local.DNSRecordTypesInfSPF = [ "a", "mx" ];
 
 						for ( local.DNSRecordType in local.DNSRecordTypesInfSPF ) {
@@ -657,11 +739,6 @@ component {
 								local.tmpipaddress = getIpByDomain( local.domainName );
 								appendDebugLogLine( "#local.DNSRecordType#:#local.tmpipaddress#" );
 
-								// count HOP because of https://datatracker.ietf.org/doc/html/rfc4408 (see 10.1 a,mx,include,redirect count as hop)
-								local.spfHops++;
-								appendDebugLogLine( "HOP-Counted(+1) because of '#local.DNSRecordType#' hop is now #local.spfHops#" );
-								
-								
 								if ( tmpipaddress == local.ipAddress ) {
 									appendDebugLogLine( "SenderIPAddress is #local.DNSRecordType#:#local.tmpipaddress#" );
 									return true;
@@ -731,19 +808,30 @@ component {
 						}
 
 
-						local.SPFRecordTypesInSPF = [ "include:", "redirect=" ];
+                        if ( left( local.spfitem, len( "ptr:" ) ) == "ptr:" ) {
+                            //check for PTR entries
+                            local.tmpDomainName= replacenocase( local.spfitem, "ptr:", "", "ALL" );
+                            appendDebugLogLine( "PTR FOUND: calling isSendersIPAllowedByPTR( '#local.ipAddress#', '#local.tmpDomainName#')" );
+                            if( isSendersIPAllowedByPTR( local.ipAddress, local.tmpDomainName) ){
+                                appendDebugLogLine( "PTR entry found: TRUE");
+                                return true;
+                            }else{
+                                appendDebugLogLine( "PTR entry NOT found... ");
+
+                            }
+                            
+							
+					
+						}
+
+
+						local.SPFRecordTypesInSPF = [ "include:", "redirect="];
 
 						for ( local.SPFRecordType in local.SPFRecordTypesInSPF ) {
 
 							if ( left( local.spfitem, len( local.SPFRecordType ) ) == local.SPFRecordType ) {
 
 								appendDebugLogLine( "Checking #local.spfitem#" );
-								
-								// count HOP because of https://datatracker.ietf.org/doc/html/rfc4408 (see 10.1 a,mx,include,redirect count as hop)
-								local.spfHops++;
-								appendDebugLogLine( "HOP-Counted(+1) because of '#local.spfitem#' hop is now #local.spfHops#" );
-
-								
 								local.includeDomainName = replacenocase( local.spfitem, local.SPFRecordType, "", "ALL" );
 								appendDebugLogLine( "#local.spfitem#: Rekursive call isSendersIpAllowedBySPF('#local.ipAddress#','#local.includeDomainName#',#local.spfHops#);" );
 								local.tmpisSendersIpAllowedBySPF = isSendersIpAllowedBySPF( local.ipAddress, local.includeDomainName, local.spfHops );
